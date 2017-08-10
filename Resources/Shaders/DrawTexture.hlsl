@@ -3,8 +3,9 @@
 //------------------------------------------------------------------------------------------
 cbuffer CONSTANT_BUFFER :register(b0)
 {
-    matrix WVP  : packoffset(c0);
-    float  Time : packoffset(c4);
+    matrix WVP   : packoffset(c0);
+    float  Time  : packoffset(c4);
+    float2 Mouse : packoffset(c5);
 };
 
 //------------------------------------------------------------------------------------------
@@ -88,7 +89,7 @@ float2 opU(float2 d1, float2 d2)
 float2 smin(float2 a, float2 b, float k)
 {
     float h = clamp(0.5 + 0.5 * (b.x - a.x) / k, 0.0, 1.0);
-    return lerp(b, a, h) - float2(k * h * (1.0 - h), 0.);
+    return lerp(b, a, h) - float2(k * h * (1.0 - h), 0.0);
 }
 
 //=========================================================================
@@ -194,10 +195,10 @@ float3 calcNormalLandscape(in float3 pos)
     float3 eps = float3(0.01, 0.0, 0.0);
     float3 a = eps.xyz;
     a.y = mapLandscape(pos.xz + a.xz) - mapLandscape(pos.xz - a.xz);
-    a.xz *= 2.;
+    a.xz *= 2.0;
     float3 b = eps.zyx;
     b.y = mapLandscape(pos.xz + b.xz) - mapLandscape(pos.xz - b.xz);
-    b.xz *= 2.;
+    b.xz *= 2.0;
     return normalize(cross(b, a));
 }
 float2 castRay(in float3 ro, in float3 rd)
@@ -213,19 +214,25 @@ float2 castRay(in float3 ro, in float3 rd)
     {
         res = map(ro + rd * t);
         if (res.x < precis || t > tmax)
+        {
             break;
+        }
         t += res.x;
         m = res.y;
     }
 
-    if (t > tmax)
-        m = -1.0; // || res.x > 100.0 * precis 
+    if (t > tmax) // || res.x > 100.0 * precis
+    {
+        m = -1.0;
+    }
     res = float2(t, m);
     
     float2 resLandscape = castRayLandscape(ro, rd);
-    if (resLandscape.y >= 0. && (m < 0. || resLandscape.x < t))
+    if (resLandscape.y >= 0.0 && (m < 0.0 || resLandscape.x < t))
+    {
         res = resLandscape;
-    
+    }
+        
     return res;
 }
 float3 calcNormal(in float3 pos)
@@ -247,11 +254,12 @@ float softshadow(in float3 ro, in float3 rd, in float mint, in float tmax)
         res = min(res, 8.0 * h / t);
         t += clamp(h, 0.04, 1.0);
         if (h < 0.001 || t > tmax)
+        {
             break;
+        }
     }
     return clamp(res, 0.0, 1.0);
 }
-
 
 //=========================================================================
 // glints
@@ -646,37 +654,39 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
 float3 render(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy)
 {
     // sun and sky
-    float3 lig = normalize(float3(0.6, .9, 0.5));
+    float3 lightDir = normalize(float3(0.6, .9, 0.5));
     float3 lightPower = float3(9.0, 9.0, 9.0);
-    float3 sky = float3(0.7, 0.9, 1.0) + 1. + rd.y * 0.8;
+    float3 sky = float3(0.7, 0.9, 1.0) + 1.0 + rd.y * 0.8;
     float3 col = sky * lightPower;
+
     // ray cast
     float2 res = castRay(ro, rd);
     float t = res.x;
     float m = res.y;
+
     // shade hit
     if (m > -0.5)
     {
         // hit information
         float3 pos = ro + t * rd;
-        float3 nor = (m < 2.) ? calcNormalLandscape(pos) : calcNormal( pos );
+        float3 normal = (m < 2.0) ? calcNormalLandscape(pos) : calcNormal( pos );   //  if m>2, it is car object 
 
         float3x3 texProjFrame = float3x3(float3(1, 0, 0), float3(0, 0, 1), float3(0, 1, 0));
-        if (abs(nor.x) > abs(nor.y) && abs(nor.x) > abs(nor.z))
+        if (abs(normal.x) > abs(normal.y) && abs(normal.x) > abs(normal.z))
         {
             texProjFrame = float3x3(float3(0, 0, 1), float3(0, 1, 0), float3(1, 0, 0));
         }
-        else if (abs(nor.z) > abs(nor.x) && abs(nor.z) > abs(nor.y))
+        else if (abs(normal.z) > abs(normal.x) && abs(normal.z) > abs(normal.y))
         {
             texProjFrame = float3x3(float3(1, 0, 0), float3(0, 1, 0), float3(0, 0, 1));
         }  
-        float3 bitang = normalize(cross(nor, texProjFrame[0]));
-        float3 tang = cross(bitang, nor);
-        float3x3 ctf = float3x3(tang, bitang, nor);
+        float3 bitang = normalize(cross(normal, texProjFrame[0]));
+        float3 tang = cross(bitang, normal);
+        float3x3 ctf = float3x3(tang, bitang, normal);
         
         // texturing
         float3 dposdx, dposdy;
-        calcDpDxy(ro, rd, rdx, rdy, t, nor, dposdx, dposdy);
+        calcDpDxy(ro, rd, rdx, rdy, t, normal, dposdx, dposdy);
         // planar projections
         float texScaling = 1.0;
 #if 1
@@ -688,39 +698,30 @@ float3 render(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy)
         float2 duvdx = texScaling * (mul(dposdx, texProjFrame)).xy;
         float2 duvdy = texScaling * (mul(dposdy, texProjFrame)).xy;
 #endif
-        // computing these manually from ray differentials to handle edges in ray casting,
-        // can simply use standard derivatives in real-world per-object fragment shaders:
-        //float2 duvdx = ddx(texCO);
-        //float2 duvdy = ddy(texCO);
         
-        // useful information
-        float occ = softshadow(pos, lig, 0.02, 25.);
-        float amb = clamp(0.5 + 0.5 * nor.y, 0.0, 1.0);
-        float dif = clamp(dot(nor, lig), 0.0, 1.0);
-        float fre = 1. - pow(1. - dif, 2.5);
-        float dfr = 1. - pow(1. - clamp(dot(nor, -rd), 0.0, 1.0), 2.5);
-        dfr *= fre;
-        
-        // some default material        
-        col = 0.45 + 0.3 * sin(float3(0.05, 0.08, 0.10) * (m - 1.0));
-        col *= .4;
+        // information
+        float occ = softshadow(pos, lightDir, 0.02, 25.0);
+        float amb = clamp(0.5 + 0.5 * normal.y, 0.0, 1.0);
+        float dif = clamp(dot(normal, lightDir), 0.0, 1.0);
+        float fre = 1.0 - pow(1.0 - dif, 2.5);
+        float dfr = (1.0 - pow(1.0 - clamp(dot(normal, -rd), 0.0, 1.0), 2.5)) * fre;
         float specularity = frac(m);
         
         // configure multiscale material (snow parameters)
         float2 roughness = float2(0.6, 0.6);
-        float2 microRoughness = roughness * .024;
-        float searchConeAngle = .01;
-        float variation = 100.;
-        float dynamicRange = 50000.;
+        float2 microRoughness = roughness * 0.024;
+        float searchConeAngle = 0.01;
+        float variation = 100.0;
+        float dynamicRange = 50000.0;
         float density = 5.e8;
     
         // snow
-        if (floor(m) == 1.)
+        if (floor(m) == 1.0)
         {
-            col = lerp(float3(.1, .2, .5), float3(.95, .8, .75), (1. - abs(rd.y)) * dif);
+            col = lerp(float3(0.1, 0.2, 0.5), float3(0.95, 0.8, 0.75), (1.0 - abs(rd.y)) * dif);
         }
         // wheels (not using multiscale, specularity = 0)
-        else if (floor(m) == 2.)
+        else if (floor(m) == 2.0)
         {
             col = float3(0,0,0);
         }
@@ -729,39 +730,38 @@ float3 render(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy)
             col = float3(0.7, 0.7, 0.7);
         }
         // car 1 (anisotropic)
-        else if (floor(m) == 4.)
+        else if (floor(m) == 4.0)
         {
             col = float3(0.02, 0.2, 0.04);
-            col = lerp(col, sky, .15 * pow(1. - dfr, 2.));
-            roughness = float2(.05, .3);
-            density = 2.e7;
-            variation = 10.0;
+            col = lerp(col, sky, 0.15 * pow(1.0 - dfr, 2.0));
+            roughness = float2(0.05, 0.3);
             microRoughness = roughness.xx;
+            variation = 10.0;
+            dynamicRange = 10.0; // max 10x more microdetails than expected
+            density = 2.e7;
             specularity *= dfr; // layered material (translucency)
-            dynamicRange = 10.; // max 10x more microdetails than expected
         }
         // car 2 (isotropic)
-        else if (floor(m) == 5.)
+        else if (floor(m) == 5.0)
         {
-            roughness = float2(0.07, 0.07);
-            microRoughness = roughness * .5;
             col = float3(0.5, 0.025, 0.025);
-            col = lerp(col, sky, .15 * pow(1. - dfr, 2.));
-            variation = .1;
+            col = lerp(col, sky, 0.15 * pow(1.0 - dfr, 2.0));
+            roughness = float2(0.07, 0.07);
+            microRoughness = roughness * 0.5;
+            variation = 0.1;
+            dynamicRange = 5.0; // max 5x more microdetails than expected
             density = 1.e6;
             specularity *= dfr; // layered material (translucency)
-            dynamicRange = 5.; // max 5x more microdetails than expected
         }
         
         // standard diffuse lighting
-        col *= lightPower * lerp(.02, 1., occ * dif);
+        col *= lightPower * lerp(0.02, 1.0, occ * dif);
         
         // multiscale specular lighting
-        if (specularity > 0.0 && dif > 0.0 && dot(-rd, nor) > 0.0)
-            col += specularity * glints(texCO, duvdx, duvdy, ctf, lig, nor, -rd, roughness, microRoughness, searchConeAngle, variation, dynamicRange, density)
-                * lightPower * lerp(.05, 1., occ);
+        if (specularity > 0.0 && dif > 0.0 && dot(-rd, normal) > 0.0)
+            col += specularity * glints(texCO, duvdx, duvdy, ctf, lightDir, normal, -rd, roughness, microRoughness, searchConeAngle, variation, dynamicRange, density)
+                    * lightPower * lerp(0.05, 1.0, occ);
     }
-
     return col;
 }
 
@@ -779,45 +779,38 @@ float3x3 setCamera(in float3 ro, in float3 ta, float cr)
 //------------------------------------------------------------------------------------------
 float4 PS(VS_OUTPUT input) : SV_Target
 {
-    //　0~1のuv座標をつくる
+    //　-1~1のuv座標をつくる
     float4 Pos = input.Pos;
-    float2 uv = Pos.xy / RESOLUTION.xy;
-    float2 p = -1.0 + 2.0 * uv;
-    p.x *= RESOLUTION.x / RESOLUTION.y;
-    p.y = -p.y;
-    float2 mo = float2(0.0, 0.0); //iMouse.xy / iResolution.xy;
+    float2 uv = -1.0 + 2.0 * Pos.xy / RESOLUTION.xy;
+    uv.x *= RESOLUTION.x / RESOLUTION.y;
+    uv.y = -uv.y;
+    float2 mouse = Mouse.xy / RESOLUTION.xy;
      
-    float time = 15.0 + Time;
+    float time = Time;
 
     // camera
-//  time = 1505.0;
-    float ds = 1.5 + sin(time / 2.);
-    float3 ro = float3(-0.5 + ds * 8.5 * cos(0.1 * time + 6.0 * mo.x)
-                   , 10.0 - 9.5 * mo.y
-                   , 0.5 + ds * 8.5 * sin(0.1 * time + 6.0 * mo.x));
-    ro.y /= 1. + .01 * dot(ro.xz, ro.xz);
-    ro.y += mapLandscape(ro.xz);
-    float3 ta = float3(-0.5, -0.4, 0.5);
+    float ds = 1.5 + sin(time / 2.0);
+    float3 eyePos = float3(-0.5 + ds * 8.5 * cos(0.1 * time + 6.0 * mouse.x)
+                        , 10.0 - 9.5 * mouse.y
+                        , 0.5 + ds * 8.5 * sin(0.1 * time + 6.0 * mouse.x));
+
+    float3 lookAt = float3(-0.5, -0.4, 0.5);
   
     // camera-to-world transformation
-    float3x3 ca = setCamera(ro, ta, 0.0);
+    float3x3 MV = setCamera(eyePos, lookAt, 0.0);
     
     // ray direction
-    float3 rd = mul(normalize(float3(p.xy, 2.0)), ca);
-    float2 rds = -sign(p + .001);
-#if 1
-    float3 rdx = mul(mul(normalize(float3(p.xy + rds.x * float2(1.0 / RESOLUTION.y, 0), 2.0)), rds.x), ca);
-    float3 rdy = mul(mul(normalize(float3(p.xy + rds.y * float2(0, 1.0 / RESOLUTION.y), 2.0)), rds.y), ca);
-#else
-    float3 rdx = mul(mul(rds.x, normalize(float3(p.xy + rds.x * float2(1.0 / RESOLUTION.y, 0), 2.0))), ca);
-    float3 rdy = mul(mul(rds.y, normalize(float3(p.xy + rds.y * float2(0, 1.0 / RESOLUTION.y), 2.0))), ca);
-#endif
+    float3 rd = mul(normalize(float3(uv.xy, 2.0)), MV);
+    float2 rds = -sign(uv + 0.001);
+    float3 rdx = mul(rds.x * normalize(float3(uv.xy + rds.x * float2(1.0 / RESOLUTION.y, 0), 2.0)), MV);
+    float3 rdy = mul(rds.y * normalize(float3(uv.xy + rds.y * float2(0, 1.0 / RESOLUTION.y), 2.0)), MV);
 
     // render 
-    float3 col = render(ro, rd, rdx, rdy);
+    float3 col = render(eyePos, rd, rdx, rdy);
+
     // tonemap, gamma
     col *= 1.0 / (max(max(col.r, col.g), col.b) + 1.0);
-    col = pow(col, float3(0.4545, 0.4545, 0.4545));
+    col = pow(col, 0.4545);
 
     return float4(col, 1);
 }

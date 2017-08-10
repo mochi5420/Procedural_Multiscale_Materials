@@ -99,7 +99,7 @@ bool App::InitWindow()
 		APP_NAME,				// ウインドウクラス名 
 		APP_NAME,				// ウインドウのタイトル
 		WS_OVERLAPPEDWINDOW,	// ウインドウスタイル 
-		0, 0,					// ウインドウ表示位置 
+		200, 200,				// ウインドウ表示位置 
 		WINDOW_WIDTH, 			// ウインドウの大きさ 
 		WINDOW_HEIGHT,			// ウインドウの大きさ 
 		nullptr,				// 親ウインドウのハンドル 
@@ -375,7 +375,7 @@ void App::MainLoop()
 			fps.COUNTER(m_hWnd);
 		}
 	}
-
+	
 }
 
 
@@ -430,8 +430,14 @@ void App::OnRender()
 	//シェーダーのコンスタントバッファーに各種データを渡す
 	ConstantBuffer cb;
 	D3D11_MAPPED_SUBRESOURCE pData;
+
 	static float startTime = timeGetTime();
 	float currentTime = timeGetTime() - startTime;
+	
+	POINT point;
+	GetCursorPos(&point);
+	ScreenToClient(m_hWnd, &point);
+
 	if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer[DRAW_GLINT].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
 	{
 		//WVP行列をシェーダーに渡す
@@ -440,11 +446,13 @@ void App::OnRender()
 
 		cb.time = currentTime / 1000.0f;
 
+		cb.mouse = D3DXVECTOR2(point.x, point.y);
+
 		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
 		m_pDeviceContext->Unmap(m_pConstantBuffer[DRAW_GLINT].Get(), 0);
 	}
 
-
+	
 	//このコンスタントバッファーを使うシェーダーの登録
 	m_pDeviceContext->VSSetConstantBuffers(0, 1, m_pConstantBuffer[DRAW_GLINT].GetAddressOf());
 	m_pDeviceContext->PSSetConstantBuffers(0, 1, m_pConstantBuffer[DRAW_GLINT].GetAddressOf());

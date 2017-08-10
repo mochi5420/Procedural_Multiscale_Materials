@@ -67,8 +67,9 @@ private:
 	//=============================================================================================
 	struct ConstantBuffer
 	{
-		ALIGN(16) D3DXMATRIX WVP;
-		ALIGN(16) float		 time;
+		ALIGN(16) D3DXMATRIX  WVP;
+		ALIGN(16) float		  time;
+		ALIGN(16) D3DXVECTOR2 mouse;
 	};
 
 	//=============================================================================================
