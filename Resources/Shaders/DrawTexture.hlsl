@@ -37,7 +37,7 @@ static float2 RESOLUTION = { 512, 512 };
 //------------------------------------------------------------------------------------------
 
 //=========================================================================
-//	procedural distance fields
+//  procedural distance fields
 //  http://www.iquilezles.org/www/articles/distfunctions/distfunctions.htm
 //=========================================================================
 float sdBox(float3 p, float3 b)
@@ -176,7 +176,7 @@ float2 castRayLandscape(in float3 ro, in float3 rd)
         
         float3 p = ro + rd * t;
         float h = mapLandscape(p.xz);
-        if (p.y < h)
+        if (p.y < h && t < maxt)
         {
             // interpolate the intersection distance
             return float2(t - delt + delt * (lh - ly) / (p.y - ly - h + lh), 1.99);
@@ -188,7 +188,7 @@ float2 castRayLandscape(in float3 ro, in float3 rd)
         
         t += delt;
     }
-    return float2(maxt, -1.);
+    return float2(maxt, -1.0);
 }
 float3 calcNormalLandscape(in float3 pos)
 {
@@ -286,8 +286,7 @@ float maxNrm(float2 v)
 }
 float2x2 inverse2(float2x2 m)
 {
-    return float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]) / (m[0][0] * m[1][1] - m[0][1] * m[1][0]);    //is it ok?
-    //return float2x2(m[1][1], -m[1][0], -m[0][1], m[0][0]) / (m[0][0] * m[1][1] - m[1][0] * m[0][1]);
+    return float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]) / (m[0][0] * m[1][1] - m[0][1] * m[1][0]);
 }
 float erfinv(float x)
 {
@@ -458,11 +457,7 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
 
     // Compute half floattor (w.r.t. dir light)
     float3 hvW = normalize(lig + view);
-#if 1
     float3 hv = normalize(mul(ctf, hvW));
-#else   
-    float3 hv = normalize(mul(hvW, ctf));
-#endif    
     float2 h = hv.xy / hv.z;
     float2 h2 = 0.75 * hv.xy / (hv.z + 1.);
     // Anisotropic compression of the slope-domain grid
@@ -593,13 +588,7 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                 // Sample actually found number of glints
                 float u = hash(float(coneIdx.x + coneIdx.y * 697));
                 float lN = approx_binomial(u, sN, pmf);
-#if 0
-                // Colored glints
-                if (false) {
-                    float3 glintColor = hue_colormap(frac(u + u2.y));
-                    glintColor = lerp(float3(1.0f), glintColor, 1. / sqrt(max(lN, 1.0)));
-                }
-#endif
+
                 // Ratio of glinting vs. expected number of microfacets
                 float ratio = lN / eN;
                 
@@ -608,32 +597,22 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                 
                 // convert to reflectance
                 ratio *= pmfToBRDF;
-#if 0
-                // Grid
-                reflection += float3(u);
-                weight += coverageWeight;
-#else
+
                 // Accumulate results
                 reflection += coverageWeight * ratio;
+                //reflection += float3(u, u, u);    // Grid for Debug
                 weight += coverageWeight;
-#endif
 
                 // for incr:
                 uv += uvPC * uvShortAxis, uvi += uvShortAxis, ++iter;
             }
 
             // for incr:
-            uvo += uvPC * uvLongAxis, uv = uvbs + uvo
-            , uvio += uvLongAxis, uvi = uvbi + uvio;
+            uvo += uvPC * uvLongAxis;
+            uv = uvbs + uvo;
+            uvio += uvLongAxis;
+            uvi = uvbi + uvio;
         }
-
-#ifdef DEBUG
-        // Normalization
-        if (weight < 1.e-15) {
-            col = float3(0.0, 1.0, 1.0);
-            break;
-        }
-#endif
 
         reflection = reflection / weight;
 
@@ -641,7 +620,8 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
         col += mipWeight * reflection;
 
         // for incr:
-        uvPC *= 2., mip += 1.;
+        uvPC *= 2.0;
+        mip += 1.0;
     }
 
     return col;
@@ -689,15 +669,9 @@ float3 render(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy)
         calcDpDxy(ro, rd, rdx, rdy, t, normal, dposdx, dposdy);
         // planar projections
         float texScaling = 1.0;
-#if 1
         float2 texCO = texScaling * (mul(texProjFrame, pos)).xy;
         float2 duvdx = texScaling * (mul(texProjFrame, dposdx)).xy;
         float2 duvdy = texScaling * (mul(texProjFrame, dposdy)).xy;
-#else  
-        float2 texCO = texScaling * (mul(pos, texProjFrame)).xy;
-        float2 duvdx = texScaling * (mul(dposdx, texProjFrame)).xy;
-        float2 duvdy = texScaling * (mul(dposdy, texProjFrame)).xy;
-#endif
         
         // information
         float occ = softshadow(pos, lightDir, 0.02, 25.0);
@@ -775,7 +749,7 @@ float3x3 setCamera(in float3 ro, in float3 ta, float cr)
 }
 
 //------------------------------------------------------------------------------------------
-//	Pixel Shader
+//  Pixel Shader
 //------------------------------------------------------------------------------------------
 float4 PS(VS_OUTPUT input) : SV_Target
 {
@@ -784,7 +758,7 @@ float4 PS(VS_OUTPUT input) : SV_Target
     float2 uv = -1.0 + 2.0 * Pos.xy / RESOLUTION.xy;
     uv.x *= RESOLUTION.x / RESOLUTION.y;
     uv.y = -uv.y;
-    float2 mouse = Mouse.xy / RESOLUTION.xy;
+    float2 mouse = 0.0;//Mouse.xy / RESOLUTION.xy;
      
     float time = Time;
 
