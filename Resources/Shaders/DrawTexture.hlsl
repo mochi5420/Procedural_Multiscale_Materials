@@ -447,7 +447,7 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
     // Section 4.2
     // Compute pixel footprint in texture space, step size w.r.t. anisotropy of the footprint
     float2x2 uvToPx = inverse2(float2x2(duvdx, duvdy));
-    float2 uvPP = 1. / float2(maxNrm(uvToPx[0]), maxNrm(uvToPx[1]));
+    float2 uvPP = 1.0 / float2(maxNrm(uvToPx[0]), maxNrm(uvToPx[1]));
 
     // Section 4.3
     // material
@@ -471,8 +471,8 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                     * exp(-dot(hppRScaled, hppRScaled)); // planeplane h
     pmf /= hv.z * hv.z * hv.z * hv.z; // projected h
     //pmf /= dot(lig, nor) * dot(view, nor); // projected area, cancelled out by parts of G, ...
-    float pmfToBRDF = 1. / (3.14159 * microRoughness.x * microRoughness.y);
-    pmfToBRDF /= 4.; // solid angle o
+    float pmfToBRDF = 1.0 / (3.14159 * microRoughness.x * microRoughness.y);
+    pmfToBRDF /= 4.0; // solid angle o
     pmfToBRDF *= geometryFactor(dot(lig, nor), dot(view, nor), roughness);
     // phenomenological: larger cones flatten distribution
     float searchAreaProj = searchConeAngle * searchConeAngle / (4.0 * dot(lig, hvW) * hv.z); // * PI
@@ -530,7 +530,10 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
         float3 reflection = float3(0.0, 0.0, 0.0);
 
         // March along the long axis
-        float2 uvo = float2(0.0, 0.0), uv = uvbs, uvio = float2(0.0, 0.0), uvi = uvbi;
+        float2 uvo = float2(0.0, 0.0);
+        float2 uv = uvbs;
+        float2 uvio = float2(0.0, 0.0);
+        float2 uvi = uvbi;
         for (int iter1 = 0; iter1 < 18; ++iter1) // horrible WebGL-compatible static for loop
         {
             // for cond:
@@ -562,15 +565,15 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                 cellIdx = multilevelGridIdx(cellIdx);
 
                 // Randomize a glint based on a texture-space id of current grid cell
-                float2 u2 = hash2(float((cellIdx.x + 1549 * cellIdx.y)));
+                float2 u2 = hash2(float((cellIdx.x + 15 * cellIdx.y)));
                 // Compute index of the cone
                 float2 hg = h2 / (microRoughness + searchConeAngle);
-                float2 hs = floor(hg + u2) + u2 * 533.; // discrete cone index in paraboloid hv grid
+                float2 hs = floor(hg + u2) + u2 * 53.0; // discrete cone index in paraboloid hv grid
                 int2 coneIdx = int2(hs);
 
                 // Randomize glint sizes within this layer
-                float var_u = hash(float((cellIdx.x + cellIdx.y * 763 + coneIdx.x + coneIdx.y * 577)));
-                float mls = 1. + variation * erfinv(lerp(-.999, .999, var_u));
+                float var_u = hash(float((cellIdx.x + cellIdx.y * 7 + coneIdx.x + coneIdx.y * 5)));
+                float mls = 1. + variation * erfinv(lerp(-0.999, 0.999, var_u));
                 if (mls <= 0.0)
                     mls = frac(mls) / (1. - mls);
                 mls = max(mls, 1.e-12);
