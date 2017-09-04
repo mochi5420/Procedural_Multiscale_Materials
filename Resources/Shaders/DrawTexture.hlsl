@@ -325,8 +325,8 @@ float erfinv(float x)
 void calcDpDxy(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy, in float t, in float3 nor,
                 out float3 dpdx, out float3 dpdy)
 {
-    dpdx = 2. * t * (rdx * dot(rd, nor) / dot(rdx, nor) - rd) * sign(dot(rd, rdx));
-    dpdy = 2. * t * (rdy * dot(rd, nor) / dot(rdy, nor) - rd) * sign(dot(rd, rdy));
+    dpdx = 2.0 * t * (rdx * dot(rd, nor) / dot(rdx, nor) - rd) * sign(dot(rd, rdx));
+    dpdy = 2.0 * t * (rdy * dot(rd, nor) / dot(rdy, nor) - rd) * sign(dot(rd, rdy));
 }
 
 // some microfacet BSDF geometry factors
@@ -339,7 +339,7 @@ float geometryFactor(float NoL, float NoV, float2 roughness)
 
     float G_V = NoV + sqrt((NoV - NoV * a2) * NoV + a2);
     float G_L = NoL + sqrt((NoL - NoL * a2) * NoL + a2);
-    return 1. / (G_V * G_L);
+    return 1.0 / (G_V * G_L);
 }
 
 //----------------------------------------------------------------------
@@ -367,10 +367,10 @@ int2 multilevelGridIdx(int2 idx)
 // two closest binomial distributions where log_{.9}(p_i) integers
 float binomial_interp(float u, float N, float p)
 {
-    if (p >= 1.)
+    if (p >= 1.0)
         return N;
     else if (p <= 1e-10)
-        return 0.;
+        return 0.0;
 
     // convert to distribution on ints while retaining expected value
     float cN = ceil(N);
@@ -379,14 +379,14 @@ float binomial_interp(float u, float N, float p)
     N = cN;
 
     // round p to nearest powers of .9 (more stability)
-    float pQ = .9;
+    float pQ = 0.9;
     float pQef = log2(p) / log2(pQ);
     float p2 = exp2(floor(pQef) * log2(pQ));
     float p1 = p2 * pQ;
     float2 ps = float2(p1, p2);
 
     // compute the two corresponding binomials in parallel
-    float2 pm = pow(1. - ps, float2(N, N));
+    float2 pm = pow(1.0 - ps, float2(N, N));
     float2 cp = pm;
     float2 r = float2(N, N);
 
@@ -404,16 +404,16 @@ float binomial_interp(float u, float N, float p)
         // fast path
         if (ii > 16)
         {
-            float C = 1. / (1. - pow(p, N - i - 1.));
-            float2 U = (u - cp) / (1. - cp);
-            float2 A = (i + 1. + log2(1. - U / C) / log2(p));
+            float C = 1.0 / (1.0 - pow(p, N - i - 1.));
+            float2 U = (u - cp) / (1.0 - cp);
+            float2 A = (i + 1.0 + log2(1.0 - U / C) / log2(p));
             r = min(A, r);
             break;
         }
 
-        i += 1.;
+        i += 1.0;
         pm /= 1. - ps;
-        pm *= (N + 1. - i) / i;
+        pm *= (N + 1.0 - i) / i;
         pm *= ps;
         cp += pm;
     }
@@ -424,13 +424,13 @@ float binomial_interp(float u, float N, float p)
 // resort to gaussian distribution for larger N*p
 float approx_binomial(float u, float N, float p)
 {
-    if (p * N > 5.)
+    if (p * N > 5.0)
     {
         float e = N * p;
-        float v = N * p * max(1. - p, 0.0);
+        float v = N * p * max(1.0 - p, 0.0);
         float std = sqrt(v);
-        float k = e + erfinv(lerp(-.999999, .999999, u)) * std;
-        return min(max(k, 0.), N);
+        float k = e + erfinv(lerp(-0.999999, 0.999999, u)) * std;
+        return min(max(k, 0.0), N);
     }
     else
         return binomial_interp(u, N, p);
@@ -444,38 +444,40 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
 {
     float3 col = float3(0.0, 0.0, 0.0);
 
+    // Section 4.2
     // Compute pixel footprint in texture space, step size w.r.t. anisotropy of the footprint
     float2x2 uvToPx = inverse2(float2x2(duvdx, duvdy));
     float2 uvPP = 1. / float2(maxNrm(uvToPx[0]), maxNrm(uvToPx[1]));
 
+    // Section 4.3
     // material
     float2 mesoRoughness = sqrt(max(roughness * roughness - microRoughness * microRoughness, float2(1.e-12, 1.e-12))); // optimizer fail, max 0 removed
 
     // Anisotropic compression of the grid
-    float2 texAnisotropy = float2(min(mesoRoughness.x / mesoRoughness.y, 1.)
-                             , min(mesoRoughness.y / mesoRoughness.x, 1.));
+    float2 texAnisotropy = float2(min(mesoRoughness.x / mesoRoughness.y, 1.0),
+                                    min(mesoRoughness.y / mesoRoughness.x, 1.0));
 
     // Compute half floattor (w.r.t. dir light)
     float3 hvW = normalize(lig + view);
     float3 hv = normalize(mul(ctf, hvW));
     float2 h = hv.xy / hv.z;
-    float2 h2 = 0.75 * hv.xy / (hv.z + 1.);
+    float2 h2 = 0.75 * hv.xy / (hv.z + 1.0);
     // Anisotropic compression of the slope-domain grid
     h2 *= texAnisotropy;
 
     // Compute the Gaussian probability of encountering a glint within a given finite cone
     float2 hppRScaled = h / roughness;
     float pmf = (microRoughness.x * microRoughness.y) / (roughness.x * roughness.y)
-        * exp(-dot(hppRScaled, hppRScaled)); // planeplane h
+                    * exp(-dot(hppRScaled, hppRScaled)); // planeplane h
     pmf /= hv.z * hv.z * hv.z * hv.z; // projected h
-//  pmf /= dot(lig, nor) * dot(view, nor); // projected area, cancelled out by parts of G, ...
+    //pmf /= dot(lig, nor) * dot(view, nor); // projected area, cancelled out by parts of G, ...
     float pmfToBRDF = 1. / (3.14159 * microRoughness.x * microRoughness.y);
     pmfToBRDF /= 4.; // solid angle o
-    pmfToBRDF *= geometryFactor(dot(lig, nor), dot(view, nor), roughness); // ... see "geometryFactor"
+    pmfToBRDF *= geometryFactor(dot(lig, nor), dot(view, nor), roughness);
     // phenomenological: larger cones flatten distribution
-    float searchAreaProj = searchConeAngle * searchConeAngle / (4. * dot(lig, hvW) * hv.z); // * PI
-    pmf = lerp(pmf, 1., clamp(searchAreaProj, 0.0, 1.0)); // searchAreaProj / PI
-    pmf = min(pmf, 1.);
+    float searchAreaProj = searchConeAngle * searchConeAngle / (4.0 * dot(lig, hvW) * hv.z); // * PI
+    pmf = lerp(pmf, 1.0, clamp(searchAreaProj, 0.0, 1.0)); // searchAreaProj / PI
+    pmf = min(pmf, 1.0);
     
     // noise coordinate (decorrelate interleaved grid)
     texCO += float2(100.0, 100.0);

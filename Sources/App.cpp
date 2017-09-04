@@ -174,6 +174,7 @@ bool App::InitD3D()
 
 	//深度ステンシルビューの作成
 	D3D11_TEXTURE2D_DESC descDepth;
+	SecureZeroMemory(&descDepth, sizeof(descDepth));
 	descDepth.Width					= WINDOW_WIDTH;
 	descDepth.Height				= WINDOW_HEIGHT;
 	descDepth.MipLevels				= 1;
@@ -442,8 +443,8 @@ void App::OnRender()
 	{
 		//WVP行列をシェーダーに渡す
 		cb.WVP = m_ViewMatrix*m_ProjectionMatrix;
-		//D3DXMatrixTranspose(&cb.mWP, &cb.mWP);
-
+		D3DXMatrixTranspose(&cb.WVP, &cb.WVP);
+		 
 		cb.time = currentTime / 1000.0f;
 
 		cb.mouse = D3DXVECTOR2(point.x, point.y);
