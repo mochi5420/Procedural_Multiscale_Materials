@@ -264,11 +264,16 @@ float softshadow(in float3 ro, in float3 rd, in float mint, in float tmax)
 //=========================================================================
 // glints
 //=========================================================================
+//mod(glsl)‚Æfmod(hlsl)‚Å‚Í•‰‚Ì’l‚Ì•Ô‚·’l‚ªˆÙ‚È‚Á‚Ä‚µ‚Ü‚¤‚©‚çmod‚Í©ì
+float mod(float x, float y)
+{
+    return x - y * floor(x / y);
+}
 
 //hash
 float hash(float n)
 {
-    return frac(sin(fmod(n, 3.14)) * 753.5453123);
+    return frac(sin(mod(n, 3.14)) * 753.5453123);
 }
 float2 hash2(float n)
 {
@@ -391,8 +396,7 @@ float binomial_interp(float u, float N, float p)
     float2 r = float2(N, N);
 
     float i = 0.0;
-    // this should actually be < N, no dynamic loops in ShaderToy right now
-    for (int ii = 0; ii <= 17; ++ii)
+    for (int ii = 0; ii <= N; ++ii)
     {
         if (u < cp.x)
             r.x = min(i, r.x);
@@ -565,14 +569,14 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                 cellIdx = multilevelGridIdx(cellIdx);
 
                 // Randomize a glint based on a texture-space id of current grid cell
-                float2 u2 = hash2(float((cellIdx.x + 15 * cellIdx.y)));
+                float2 u2 = hash2(float((cellIdx.x + 1549 * cellIdx.y)));
                 // Compute index of the cone
                 float2 hg = h2 / (microRoughness + searchConeAngle);
-                float2 hs = floor(hg + u2) + u2 * 53.0; // discrete cone index in paraboloid hv grid
+                float2 hs = floor(hg + u2) + u2 * 533.0; // discrete cone index in paraboloid hv grid
                 int2 coneIdx = int2(hs);
 
                 // Randomize glint sizes within this layer
-                float var_u = hash(float((cellIdx.x + cellIdx.y * 7 + coneIdx.x + coneIdx.y * 5)));
+                float var_u = hash(float((cellIdx.x + cellIdx.y * 763 + coneIdx.x + coneIdx.y * 577)));
                 float mls = 1. + variation * erfinv(lerp(-0.999, 0.999, var_u));
                 if (mls <= 0.0)
                     mls = frac(mls) / (1. - mls);
@@ -609,7 +613,9 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
                 weight += coverageWeight;
 
                 // for incr:
-                uv += uvPC * uvShortAxis, uvi += uvShortAxis, ++iter;
+                uv += uvPC * uvShortAxis;
+                uvi += uvShortAxis;
+                ++iter;
             }
 
             // for incr:
