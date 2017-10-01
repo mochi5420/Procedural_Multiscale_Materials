@@ -70,8 +70,12 @@ private:
 		ALIGN(16) D3DXMATRIX  WVP;
 		ALIGN(16) float		  time;
 		ALIGN(16) D3DXVECTOR2 mouse;
-	};
-
+		ALIGN(16) D3DXVECTOR2 roughness;
+		ALIGN(16) D3DXVECTOR2 microRoughness;
+		ALIGN(16) float variation;
+		ALIGN(16) float density;
+	};	
+		
 	//=============================================================================================
 	//	ÉfÅ[É^
 	//=============================================================================================

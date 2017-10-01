@@ -3,9 +3,13 @@
 //------------------------------------------------------------------------------------------
 cbuffer CONSTANT_BUFFER :register(b0)
 {
-    matrix WVP   : packoffset(c0);
-    float  Time  : packoffset(c4);
-    float2 Mouse : packoffset(c5);
+    matrix WVP            : packoffset(c0);
+    float  Time           : packoffset(c4);
+    float2 Mouse          : packoffset(c5);
+    float2 Roughness      : packoffset(c6);
+    float2 MicroRoughness : packoffset(c7);
+    float Variation       : packoffset(c8);
+    float Density         : packoffset(c9);
 };
 
 //------------------------------------------------------------------------------------------
@@ -457,7 +461,7 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
     // material
     float2 mesoRoughness = sqrt(max(roughness * roughness - microRoughness * microRoughness, float2(1.e-12, 1.e-12))); // optimizer fail, max 0 removed
 
-    // Anisotropic compression of the grid
+    // Anisotropic compression of the grid (gamma_m)
     float2 texAnisotropy = float2(min(mesoRoughness.x / mesoRoughness.y, 1.0),
                                     min(mesoRoughness.y / mesoRoughness.x, 1.0));
 
@@ -503,7 +507,7 @@ float3 glints(float2 texCO, float2 duvdx, float2 duvdy, float3x3 ctf
 
     float isoUVPP = dot(uvPP, uvShortAxis);
     // limit anisotropy
-    isoUVPP = max(isoUVPP, dot(uvAACB, uvLongAxis) / 16.0);
+    isoUVPP = max(isoUVPP, dot(uvAACB, uvLongAxis) / 16.0);     //Ka=16
 
      // Two virtual grid mips: current and next
     float fracMip = log2(isoUVPP);
@@ -719,11 +723,11 @@ float3 render(in float3 ro, in float3 rd, in float3 rdx, in float3 rdy)
         {
             col = float3(0.02, 0.2, 0.04);
             col = lerp(col, sky, 0.15 * pow(1.0 - dfr, 2.0));
-            roughness = float2(0.05, 0.3);
-            microRoughness = roughness.xx;
-            variation = 10.0;
+            roughness = Roughness;
+            microRoughness = MicroRoughness;
+            variation = Variation;
             dynamicRange = 10.0; // max 10x more microdetails than expected
-            density = 2.e7;
+            density = Density;
             specularity *= dfr; // layered material (translucency)
         }
         // car 2 (isotropic)
@@ -769,15 +773,15 @@ float4 PS(VS_OUTPUT input) : SV_Target
     float2 uv = -1.0 + 2.0 * Pos.xy / RESOLUTION.xy;
     uv.x *= RESOLUTION.x / RESOLUTION.y;
     uv.y = -uv.y;
-    float2 mouse = 0.0;//Mouse.xy / RESOLUTION.xy;
-     
-    float time = Time;
-
+    float2 mouse = Mouse.xy / RESOLUTION.xy;
+    
     // camera
-    float ds = 1.5 + sin(time / 2.0);
-    float3 eyePos = float3(-0.5 + ds * 8.5 * cos(0.1 * time + 6.0 * mouse.x)
+    float ds = 1.5 + sin(Time / 2.0);
+    float3 eyePos = float3(-0.5 + ds * 8.5 * cos(0.1 * Time + 6.0 * mouse.x)
                         , 10.0 - 9.5 * mouse.y
-                        , 0.5 + ds * 8.5 * sin(0.1 * time + 6.0 * mouse.x));
+                        , 0.5 + ds * 8.5 * sin(0.1 * Time + 6.0 * mouse.x));
+    eyePos.y /= 1. + .01 * dot(eyePos.xz, eyePos.xz);
+    eyePos.y += mapLandscape(eyePos.xz);
 
     float3 lookAt = float3(-0.5, -0.4, 0.5);
   

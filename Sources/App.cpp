@@ -99,7 +99,7 @@ bool App::InitWindow()
 		APP_NAME,				// ウインドウクラス名 
 		APP_NAME,				// ウインドウのタイトル
 		WS_OVERLAPPEDWINDOW,	// ウインドウスタイル 
-		200, 200,				// ウインドウ表示位置 
+		100, 100,				// ウインドウ表示位置 
 		WINDOW_WIDTH, 			// ウインドウの大きさ 
 		WINDOW_HEIGHT,			// ウインドウの大きさ 
 		nullptr,				// 親ウインドウのハンドル 
@@ -200,7 +200,6 @@ bool App::InitD3D()
 
 	m_pDevice->CreateRasterizerState(&rdc, &m_pRasterizerState);
 	m_pDeviceContext->RSSetState(m_pRasterizerState.Get());
-
 
 	return true;
 }
@@ -432,13 +431,110 @@ void App::OnRender()
 	ConstantBuffer cb;
 	D3D11_MAPPED_SUBRESOURCE pData;
 
-	static float startTime = timeGetTime();
-	float currentTime = timeGetTime() - startTime;
-	
-	POINT point;
-	GetCursorPos(&point);
-	ScreenToClient(m_hWnd, &point);
 
+	//キーボードによる入力はとりあえずここで。後日クラスを作る予定
+	
+	//time
+	static float currentTime = 0.0f;
+	if (GetKeyState('T') & 0x80) {
+		if (GetKeyState(VK_RIGHT) & 0x80)
+		{
+			currentTime += 100.0f;
+		}
+		if (GetKeyState(VK_LEFT) & 0x80)
+		{
+			currentTime -= 100.0f;
+		}
+	}
+	//自動再生する時はこっち
+	//static float startTime = timeGetTime();
+	//float currentTime = timeGetTime() - startTime;
+
+	
+	//その他各種パラメータ変更（とりあえず緑の車のみ）
+	char str[60];
+
+	static D3DXVECTOR2 roughness(0.05f, 0.3f);
+	if (GetKeyState('R') & 0x80) {
+		if (GetKeyState(VK_RIGHT) & 0x80)
+		{
+			roughness.x += 0.01f;
+		}
+		else if (GetKeyState(VK_LEFT) & 0x80)
+		{
+			roughness.x -= 0.01f;
+		}
+		else if (GetKeyState(VK_UP) & 0x80)
+		{
+			roughness.y += 0.01f;
+		}
+		else if (GetKeyState(VK_DOWN) & 0x80)
+		{
+			roughness.y -= 0.01f;
+		}
+
+		sprintf(str, "roughness=%f, %f", roughness.x, roughness.y);
+		SetWindowTextA(m_hWnd, str);
+	}
+
+	static D3DXVECTOR2 microRoughness(0.05f, 0.05f);
+	if (GetKeyState('M') & 0x80) {
+		if (GetKeyState(VK_RIGHT) & 0x80)
+		{
+			microRoughness.x += 0.01f;
+		}
+		if (GetKeyState(VK_LEFT) & 0x80)
+		{
+			microRoughness.x -= 0.01f;
+		}
+		if (GetKeyState(VK_UP) & 0x80)
+		{
+			microRoughness.y += 0.01f;
+		}
+		if (GetKeyState(VK_DOWN) & 0x80)
+		{
+			microRoughness.y -= 0.01f;
+		}
+		sprintf(str, "microRoughness=%f , %f", microRoughness.x, microRoughness.y);
+		SetWindowTextA(m_hWnd, str);
+	}
+
+	static float variation = 10.0f;
+	if (GetKeyState('V') & 0x80) {
+		if (GetKeyState(VK_RIGHT) & 0x80)
+		{
+			variation += 10.0f;
+		}
+		if (GetKeyState(VK_LEFT) & 0x80)
+		{
+			variation -= 10.0f;
+		}
+		sprintf(str, "variation=%f", variation);
+		SetWindowTextA(m_hWnd, str);
+	}
+
+	static float density = 2.e7;
+	if (GetKeyState('D') & 0x80) {
+		if (GetKeyState(VK_RIGHT) & 0x80)
+		{
+			density += 1.e6;
+		}
+		if (GetKeyState(VK_LEFT) & 0x80)
+		{
+			density -= 1.e6f;
+		}
+		sprintf(str, "density=%e", density);
+		SetWindowTextA(m_hWnd, str);
+	}
+
+
+	//カメラ位置
+	static POINT point;
+	if (GetKeyState('C') & 0x80) {
+		GetCursorPos(&point);
+		ScreenToClient(m_hWnd, &point);
+	}
+	
 	if (SUCCEEDED(m_pDeviceContext->Map(m_pConstantBuffer[DRAW_GLINT].Get(), 0, D3D11_MAP_WRITE_DISCARD, 0, &pData)))
 	{
 		//WVP行列をシェーダーに渡す
@@ -447,7 +543,12 @@ void App::OnRender()
 		 
 		cb.time = currentTime / 1000.0f;
 
-		cb.mouse = D3DXVECTOR2(point.x, point.y);
+		cb.mouse = D3DXVECTOR2(point.x, point.y) / 10.0;
+
+		cb.roughness = roughness;
+		cb.microRoughness = microRoughness;
+		cb.variation = variation;
+		cb.density = density;
 
 		memcpy_s(pData.pData, pData.RowPitch, (void*)(&cb), sizeof(cb));
 		m_pDeviceContext->Unmap(m_pConstantBuffer[DRAW_GLINT].Get(), 0);
